@@ -72,7 +72,7 @@ Material:
     - _BumpScale: 1
     - _Cull: 2
     - _Cutoff: 0.5
-    - _DabsSize: 4.83
+    - _DabsSize: 6.67
     - _DstBlend: 0
     - _EnvironmentReflections: 1
     - _Gloss: 0.4
@@ -80,7 +80,7 @@ Material:
     - _Glossiness: 0
     - _GlossyReflections: 0
     - _LightStepVal: 0.252
-    - _LightWidth: 0.25
+    - _LightWidth: 0.24
     - _Metallic: 0
     - _OcclusionStrength: 1
     - _QueueOffset: 0
@@ -88,8 +88,8 @@ Material:
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SpecularPower: 3.84
-    - _SpecularSize: 1.19
+    - _SpecularPower: 0.38
+    - _SpecularSize: 0.99
     - _SrcBlend: 1
     - _Surface: 0
     - _WorkflowMode: 1
