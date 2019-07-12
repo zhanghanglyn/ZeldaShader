@@ -10,8 +10,9 @@ Shader "Zelda/LinkUtil_ST"
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
-		_NormalMap("_NormalMap" , 2D) = "white" {}
+		_NormalMap("_NormalMap" , 2D) = "black" {}
 		_DabsTex("_DabsTex" , 2D) = "white" {}
+		_SPecularMap("_SPecularMap" , 2D) = "white"{}
 
 		_BeUseObjNormal("_BeUseObjNormal" , Range(0,1)) = 0			//是否进行法线融合
 		_BeNormalBlend("_BeNormalBlend" , Range(0,1)) = 0			//是否使用物体本身法线
@@ -20,11 +21,15 @@ Shader "Zelda/LinkUtil_ST"
 		_BeDabs("_BeDabs" , Range(0,1)) = 1							//是否将高光替换笔刷
 
 		_SpecularSize("_SpecularSize" , Float) = 1				//高光宽度
+		_SpecularPower("_SpecularPower" , Range(0,1)) = 0.7			//高光强度
+		aaaa("aaaa" , Range(0,1)) = 0.7			//高光强度
     }
     SubShader
     {
         Tags { "RenderType"="Opaque" }
         LOD 100
+
+		Cull Off
 
 		CGINCLUDE
 		////////////////////////////////////////
@@ -91,18 +96,26 @@ Shader "Zelda/LinkUtil_ST"
 				float4 Tan_T_World_M_2 : TEXCOORD3;
 				float4 Tan_T_World_M_3 : TEXCOORD4;
 				float4 Tan_T_World_M_4 : TEXCOORD5;
+				float4 uv2 : TEXCOORD6;
             };
 
             sampler2D _MainTex;
             float4 _MainTex_ST;
 			sampler2D _NormalMap;
 			float4 _NormalMap_ST;
+			sampler2D _SPecularMap;
+			float4 _SPecularMap_ST;
+			sampler2D _DabsTex;
+			float4 _DabsTex_ST;
+
 			fixed _BeNormalBlend;	//是否进行法线融合
 			fixed _BeUseObjNormal;	//是否使用物体本身法线
 			fixed _ShadowLayerVal;	//阴影分层位置
 			fixed4 _LayerRemapVal;	//分层后remap等级
 			fixed _BeDabs;
 			fixed _SpecularSize;
+			fixed _SpecularPower;
+			fixed aaaa;
 
             v2f vert (appdata v)
             {
@@ -110,6 +123,7 @@ Shader "Zelda/LinkUtil_ST"
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.uv.xy = TRANSFORM_TEX(v.uv, _MainTex);
 				o.uv.zw = TRANSFORM_TEX(v.uv, _NormalMap);
+				o.uv2.xy = TRANSFORM_TEX(v.uv, _SPecularMap);
 
 				float4 worldPos = mul(unity_ObjectToWorld, v.vertex);
 
@@ -154,28 +168,52 @@ Shader "Zelda/LinkUtil_ST"
 				float3 halfDir = worldLightDir + worldViewDir;
 				//光照颜色
 				fixed3 LightColor = _LightColor0.xyz;
-				//阴影以及环境光atten
-				UNITY_LIGHT_ATTENUATION(atten, i, worldPos);
 
 				//根据法线计算初步光照并且Toon分层
 				fixed diff = dot(worldLightDir, worldNormal);
-				diff = SetToonLayer(diff,2 , _ShadowLayerVal , _LayerRemapVal);
+				fixed temp_diff = diff;		//保存用来计算阴影
+				diff = SetToonLayer(diff, 2, _ShadowLayerVal, _LayerRemapVal);
 
+				//阴影以及环境光atten  //想要让阴影在本身就是阴影的地方不显示！
+				//fixed atten = SHADOW_ATTENUATION(i);
+				UNITY_LIGHT_ATTENUATION(atten, i, worldPos);
+				atten = smoothstep(aaaa,aaaa + 0.01, atten);
+				atten = Unity_Remap_float(atten, fixed2(0,1), fixed2(0.3, 1));
+				temp_diff = step(_ShadowLayerVal, temp_diff);
+				atten = atten * temp_diff;
+
+				//获取Specular贴图
+				fixed3 SpecularMap = tex2D(_SPecularMap , i.uv2.xy).rgb;
+				SpecularMap = smoothstep(0.3, 0.32 ,SpecularMap);
 
 				//////////////////////////////////
 				////计算高光，以及将高光转化为笔刷
-				fixed specular_Normal = dot(halfDir, worldNormal) * atten;
+				fixed specular_Normal = dot(halfDir, worldNormal) * atten  *SpecularMap;
 				specular_Normal = Unity_Remap_float(specular_Normal, fixed2(0.9, 1), fixed2(0, 1));
 				specular_Normal = step((1 - _SpecularSize) , specular_Normal);
+				specular_Normal *= _SpecularPower;
+
+				fixed3 specular = specular_Normal * fixed3(1, 1, 1);
+				////笔刷
+				if (_BeDabs)
+				{
+					fixed3 DabsMap = tex2D(_DabsTex, fixed2(i.uv.x * 10, i.uv.y * 10)).rgb;
+					specular = DabsMap * specular_Normal;
+				}
+				///////////////////////////////////
+
+				////添加光照面菲涅尔效应
+
+				///添加暗面菲涅尔效应
 
 
                 // Albedo
                 fixed4 diffuseColor = tex2D(_MainTex, i.uv);
-
-				//fixed4 col = fixed4(col.rgb * atten + UNITY_LIGHTMODEL_AMBIENT.xyz , 1);
+				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;
+				fixed4 col = fixed4(((LightColor * specular) + diffuseColor.rgb) * atten + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.7,1);
 			
 				///test
-				fixed4 col = fixed4(specular_Normal * fixed3(1,1,1), 1) ;
+				//fixed4 col = fixed4(DabsMap, 1);
 
 				return col;
             }
