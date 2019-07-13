@@ -69,12 +69,18 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Floats:
     - _BeDabs: 1
-    - _BeNormalBlend: 0.23
+    - _BeNormalBlend: 0
     - _BeUseObjNormal: 0
     - _BumpScale: 1
     - _Cutoff: 0.5
+    - _DabsRotation: 30
+    - _DabsSize: 7
+    - _DabsSizeX: 7
+    - _DabsSizeY: 7
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
+    - _FresnelPow: 15.93
+    - _FresnelScale: 0
     - _GlossMapScale: 1
     - _Glossiness: 0
     - _GlossyReflections: 1
@@ -82,11 +88,12 @@ Material:
     - _Mode: 0
     - _OcclusionStrength: 0.524
     - _Parallax: 0.02
-    - _ShadowLayerVal: 0.25
+    - _ShadowLayerVal: 0.29
+    - _ShadowStep: 0.7
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SpecularPower: 0.19
-    - _SpecularSize: -6.57
+    - _SpecularPower: 0.03
+    - _SpecularSize: -8.99
     - _SrcBlend: 1
     - _UVSec: 0
     - _ZWrite: 1
