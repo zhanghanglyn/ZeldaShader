@@ -124,8 +124,8 @@ Material:
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SpecularPower: 0.7
-    - _SpecularSize: -6.24
+    - _SpecularPower: 0.58
+    - _SpecularSize: -5.25
     - _SrcBlend: 1
     - _Surface: 0
     - _UVSec: 0

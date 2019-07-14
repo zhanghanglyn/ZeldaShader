@@ -13,6 +13,7 @@ Shader "Zelda/LinkUtil_ST"
 		_NormalMap("_NormalMap" , 2D) = "black" {}
 		_DabsTex("_DabsTex" , 2D) = "white" {}
 		_SPecularMap("_SPecularMap" , 2D) = "white"{}
+		_AOMap("_AOMap" , 2D) = "white"{}
 
 		_BeUseObjNormal("_BeUseObjNormal" , Range(0,1)) = 0			//是否进行法线融合
 		_BeNormalBlend("_BeNormalBlend" , Range(0,1)) = 0			//是否使用物体本身法线
@@ -129,6 +130,7 @@ Shader "Zelda/LinkUtil_ST"
 			float4 _SPecularMap_ST;
 			sampler2D _DabsTex;
 			float4 _DabsTex_ST;
+			sampler2D _AOMap;
 
 			fixed _BeNormalBlend;	//是否进行法线融合
 			fixed _BeUseObjNormal;	//是否使用物体本身法线
@@ -196,6 +198,12 @@ Shader "Zelda/LinkUtil_ST"
 				//光照颜色
 				fixed3 LightColor = _LightColor0.xyz;
 
+				//不将AO在最后乘上增加细节，而是用来乘以法线！可以完美显示效果 但是最好能够颜色加深,在Add光照中？
+				//尝试 将AO与Normal进行相乘！可以将着色效果不再生硬
+				fixed3 ao = tex2D(_AOMap, i.uv.xy).rgb;
+				worldNormal *= ao.r;
+				ao = ao / 2;
+
 				//根据法线计算初步光照并且Toon分层
 				fixed diff = dot(worldLightDir, worldNormal);
 				fixed temp_diff = diff;		//保存用来计算阴影
@@ -205,9 +213,14 @@ Shader "Zelda/LinkUtil_ST"
 				//fixed atten = SHADOW_ATTENUATION(i);
 				UNITY_LIGHT_ATTENUATION(atten, i, worldPos);
 				atten = smoothstep(_ShadowStep, _ShadowStep + 0.01, atten);
-				atten = Unity_Remap_float(atten, fixed2(0,1), fixed2(0.3, 1));
-				temp_diff = step(_ShadowLayerVal, temp_diff);
-				atten = atten * temp_diff;
+				//保存一个纯光照衰减
+				fixed save_atten = atten;
+
+				//temp_diff = step(_ShadowLayerVal, temp_diff);//把temp_diff最原始的状态保存起来
+				atten = atten * step(_ShadowLayerVal, temp_diff);//atten * temp_diff;
+				//此步骤的目的在于使模型背后背光的地方，不会变全黑而是显示正常贴图
+				diff = atten + diff;
+				diff = Unity_Remap_float(diff, fixed2(0, 1), fixed2(0.4, 0.7));
 
 				//获取Specular贴图
 				fixed3 SpecularMap = tex2D(_SPecularMap , i.uv2.xy).rgb;
@@ -225,7 +238,7 @@ Shader "Zelda/LinkUtil_ST"
 				//如果只使用普通的高光
 				if (_BeDabs < 1)
 				{
-					fixed specular_Normal = half_normal_dot * atten * SpecularMap;
+					fixed specular_Normal = half_normal_dot * diff * SpecularMap;//half_normal_dot * atten * SpecularMap;
 					specular_Normal = Unity_Remap_float(specular_Normal, fixed2(0.9, 1), fixed2(0, 1));
 					specular_Normal = step((1 - _SpecularSize), specular_Normal);
 					specular_Normal *= _SpecularPower;
@@ -238,7 +251,7 @@ Shader "Zelda/LinkUtil_ST"
 					dabsUv = Rotate_Degrees_float(dabsUv, fixed2(0.5,0.5), _DabsRotation);
 					fixed3 DabsMap = tex2D(_DabsTex, dabsUv).rgb;
 
-					fixed specularScope = half_normal_dot * atten * SpecularMap;
+					fixed specularScope = half_normal_dot * diff * SpecularMap;//half_normal_dot * atten * SpecularMap;
 					fixed temp_shadowDiff = Unity_Remap_float(_SpecularSize, fixed2(0, 1), fixed2(-1, -0.9));
 					temp_shadowDiff = temp_shadowDiff + specularScope;
 					temp_shadowDiff = smoothstep(0.01, 0.15, temp_shadowDiff);
@@ -252,21 +265,34 @@ Shader "Zelda/LinkUtil_ST"
 				////添加光照面菲涅尔效应，只有光面
 				fixed fresnel = _FresnelScale + (1- _FresnelScale) * pow(1 - max(0, dot(worldViewDir, worldNormal)), _FresnelPow);
 				fresnel *= (half_normal_dot * atten);
+				//fresnel *= half_normal_dot;
 				fresnel  = smoothstep(0.01, 0.02, fresnel);
 
-				///添加暗面菲涅尔效应
+				///添加暗面菲涅尔效应 描边？
+				fixed fresnel_dark = 1 - dot(worldViewDir, worldNormal);
+				fresnel_dark = step(0.5 , fresnel_dark);
+				fresnel_dark = step((1 - fresnel) , fresnel_dark);
+				fresnel_dark *= (1 - save_atten);
+				fresnel_dark = smoothstep(0.01, 0.02, fresnel_dark);
+				//fixed fresnel_dark = _FresnelScale + (1 - _FresnelScale) * pow(1 - max(0, dot(worldViewDir, worldNormal)), _FresnelPow);
+				//fresnel_dark *= ((1 - half_normal_dot));
+				//fresnel_dark = smoothstep(0.01, 0.02, fresnel_dark);
+				//fixed ttt =1 - saturate( dot(-1 * worldLightDir, worldViewDir) + 0.2 ) + 0.2;
+				//fresnel_dark = step(ttt , fresnel_dark);
 
-				///自发光？完全无光时
-
-
-                // Albedo
-                fixed4 diffuseColor = tex2D(_MainTex, i.uv);
+                // Albedo满反色颜色整合
+                fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
+				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;// *ao;
+				fresnel = (fresnel * diffuseColor / 2 * 10);
+				fresnel_dark = (fresnel_dark * diffuseColor /5 * 10);
 				diffuseColor += fresnel;
-				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;
-				fixed4 col = fixed4(((LightColor * specular) + diffuseColor.rgb) * atten + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.2,1);
-			
+				//diffuseColor += fresnel_dark;
+
+				//fixed4 col = fixed4(((LightColor * specular) + diffuseColor.rgb) * atten + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.4,1);
+				fixed4 col = fixed4(((LightColor * specular ) + diffuseColor.rgb) + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.3, 1);
+
 				///test
-				//fixed4 col = fixed4(1,1,1, 1) * fresnel;
+				//fixed4 col = fixed4( fixed3(1,1,1) * ao_diff , 1);
 
 				return col;
             }

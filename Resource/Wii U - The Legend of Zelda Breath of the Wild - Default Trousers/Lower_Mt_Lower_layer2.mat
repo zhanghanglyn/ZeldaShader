@@ -19,6 +19,14 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _Albedo:
+        m_Texture: {fileID: 2800000, guid: d194cc9a97b6c5349bf47d22b2099d81, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BrushTexture:
+        m_Texture: {fileID: 2800000, guid: d02f06b943648964baa12c89c72f51f5, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _BumpMap:
         m_Texture: {fileID: 2800000, guid: 2e26a4a411685c4438e63f6a9deda447, type: 3}
         m_Scale: {x: 1, y: 1}
@@ -46,7 +54,7 @@ Material:
     - _MainTex:
         m_Texture: {fileID: 2800000, guid: d194cc9a97b6c5349bf47d22b2099d81, type: 3}
         m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
+        m_Offset: {x: 1, y: 1}
     - _MetallicGlossMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -67,10 +75,17 @@ Material:
         m_Texture: {fileID: 2800000, guid: 936d1f0a01f801b4a8c8d63e0bc71dd3, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _metallicnessMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Floats:
+    - _BNormalMap: 0
+    - _BeBrush: 1
     - _BeDabs: 1
+    - _BeEmissionMap: 1
     - _BeNormalBlend: 0
-    - _BeUseObjNormal: 0
+    - _BeUseObjNormal: 1
     - _BumpScale: 1
     - _Cutoff: 0.5
     - _DabsRotation: 72.19
@@ -79,21 +94,23 @@ Material:
     - _DabsSizeY: 1.08
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
-    - _FresnelPow: 22.59
+    - _EmissionMultiplier: 0
+    - _FresnelPow: 14.9
     - _FresnelScale: 0
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
+    - _LightWidth: 0.25
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.02
-    - _ShadowLayerVal: 0.25
+    - _ShadowLayerVal: 0.29
     - _ShadowStep: 0.18
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SpecularPower: 0.08
-    - _SpecularSize: -5.58
+    - _SpecularPower: 0.1
+    - _SpecularSize: -4.28
     - _SrcBlend: 1
     - _UVSec: 0
     - _ZWrite: 1
@@ -102,3 +119,4 @@ Material:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _LayerRemapVal: {r: 0.2, g: 0.9, b: 0, a: 0}
+    - _Tint: {r: 0.9528302, g: 0.9303578, b: 0.9303578, a: 0}
