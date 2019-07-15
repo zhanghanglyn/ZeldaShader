@@ -29,7 +29,7 @@ Shader "Zelda/LinkUtil_ST"
 		_DabsSizeY("_DabsSizeY" , Float) = 2						//将50除以该值，作为tilling的UV值
 		_DabsRotation("_DabsRotation" , Float) = 30					//UV的旋转角度
 
-		_FresnelScale("_FresnelScale" , Range(0,1)) = 0				//菲涅尔控制系数
+		//_FresnelScale("_FresnelScale" , Range(0,1)) = 0				//菲涅尔控制系数
 		_FresnelPow("_FresnelPow" , Float)	=	8					//菲涅尔pow系数
 		_DarkFresnelPow("_DarkFresnelPow" , Float) = 3				//暗面菲涅尔pow
 		_FresnelColorVal("_FresnelColorVal" , Range(0,1)) = 0.4		//该值越小，越接近物体本身的颜色
@@ -158,7 +158,7 @@ Shader "Zelda/LinkUtil_ST"
 			fixed _DabsSizeX;
 			fixed _DabsSizeY;
 			fixed _DabsRotation;
-			fixed _FresnelScale;
+			//fixed _FresnelScale;
 			fixed _FresnelPow;
 			fixed _FresnelColorVal;
 			fixed _AmbientVal;
