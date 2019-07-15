@@ -28,8 +28,12 @@ Shader "Zelda/LinkUtil_ST"
 		_DabsSizeY("_DabsSizeY" , Float) = 7						//将50除以该值，作为tilling的UV值
 		_DabsRotation("_DabsRotation" , Float) = 30					//UV的旋转角度
 
-		_FresnelScale("_FresnelScale" , Range(0,1)) = 0.01			//菲涅尔控制系数
-		_FresnelPow("_FresnelPow" , Float)	=	6					//菲涅尔pow系数
+		_FresnelScale("_FresnelScale" , Range(0,1)) = 0				//菲涅尔控制系数
+		_FresnelPow("_FresnelPow" , Float)	=	8					//菲涅尔pow系数
+		_DarkFresnelPow("_DarkFresnelPow" , Float) = 3				//暗面菲涅尔pow
+		_FresnelColorVal("_FresnelColorVal" , Range(0,1)) = 0.4		//该值越小，越接近物体本身的颜色
+
+		_AmbientVal("_AmbientVal" , Range(0,1.2)) = 0.3				//环境光系数
     }
     SubShader
     {
@@ -42,9 +46,15 @@ Shader "Zelda/LinkUtil_ST"
 		////////////////////////////////////////
 		///////////计算函数相关/////////////////
 			//法线融合
-			float3 NormalBlend(float3 A, float3 B)
+			float3 Unity_NormalBlend_float(float3 A, float3 B)
 			{
 				return normalize(float3(A.rg + B.rg, A.b * B.b));
+			}
+			float3 Unity_NormalBlend_Reoriented_float(float3 A, float3 B)
+			{
+				float3 t = A.xyz + float3(0.0, 0.0, 1.0);
+				float3 u = B.xyz * float3(-1.0, -1.0, 1.0);
+				return (t / t.z) * dot(t, u) - u;
 			}
 			//Remap
 			float4 Unity_Remap_float4(float4 In, float2 InMinMax, float2 OutMinMax)
@@ -145,6 +155,9 @@ Shader "Zelda/LinkUtil_ST"
 			fixed _DabsRotation;
 			fixed _FresnelScale;
 			fixed _FresnelPow;
+			fixed _FresnelColorVal;
+			fixed _AmbientVal;
+			fixed _DarkFresnelPow;
 
             v2f vert (appdata v)
             {
@@ -187,7 +200,7 @@ Shader "Zelda/LinkUtil_ST"
 				if (_BeUseObjNormal >= 1)
 					worldNormal = worldNormal_From_Obj;
 				if (_BeNormalBlend >= 1)
-					worldNormal = NormalBlend(worldNormal_From_Map, worldNormal_From_Obj);
+					worldNormal = Unity_NormalBlend_Reoriented_float(worldNormal_From_Map, worldNormal_From_Obj);
 				
 				//获取光照方向
 				float3 worldLightDir = normalize( UnityWorldSpaceLightDir(worldPos) );
@@ -260,39 +273,59 @@ Shader "Zelda/LinkUtil_ST"
 				}
 				///////////////////////////////////
 
-				//AO贴图
-
 				////添加光照面菲涅尔效应，只有光面
-				fixed fresnel = _FresnelScale + (1- _FresnelScale) * pow(1 - max(0, dot(worldViewDir, worldNormal)), _FresnelPow);
+				fixed fresnel = pow(1 - max(0, dot(worldViewDir, worldNormal)), _FresnelPow);
 				fresnel *= (half_normal_dot * atten);
-				//fresnel *= half_normal_dot;
 				fresnel  = smoothstep(0.01, 0.02, fresnel);
 
 				///添加暗面菲涅尔效应 描边？
-				fixed fresnel_dark = 1 - dot(worldViewDir, worldNormal);
+				/*fixed fresnel_dark = 1 - dot(worldViewDir, worldNormal);
 				fresnel_dark = step(0.5 , fresnel_dark);
 				fresnel_dark = step((1 - fresnel) , fresnel_dark);
 				fresnel_dark *= (1 - save_atten);
-				fresnel_dark = smoothstep(0.01, 0.02, fresnel_dark);
-				//fixed fresnel_dark = _FresnelScale + (1 - _FresnelScale) * pow(1 - max(0, dot(worldViewDir, worldNormal)), _FresnelPow);
-				//fresnel_dark *= ((1 - half_normal_dot));
-				//fresnel_dark = smoothstep(0.01, 0.02, fresnel_dark);
-				//fixed ttt =1 - saturate( dot(-1 * worldLightDir, worldViewDir) + 0.2 ) + 0.2;
-				//fresnel_dark = step(ttt , fresnel_dark);
+				fresnel_dark = smoothstep(0.01, 0.02, fresnel_dark);*/
+
+				/////////////////////尝试使用新的菲涅尔效应/////////////////////////
+				
+				fixed fresnel2 = pow((1.0 - saturate(dot(worldNormal, worldViewDir))), _DarkFresnelPow);
+				
+				fixed3 light_F = worldLightDir * -1;
+				fixed F_diff = 1 - saturate(dot(light_F , worldViewDir) + 0.2) + 0.2;
+
+				//暗面
+				fixed dark_fresnel = step((F_diff + 0.2), fresnel2);
+				fixed f_tempdiff = SetToonLayer(temp_diff, 2, _ShadowLayerVal, _LayerRemapVal);
+				dark_fresnel *= f_tempdiff;
+				dark_fresnel = saturate(dark_fresnel);
+
+				/*fixed3 diffColor = LightColor * specular * f_tempdiff;
+				fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
+				diffuseColor.rgb = diffColor.rgb * (diffuseColor.rgb * LightColor);
+				diffuseColor *= 1.5;
+				diffuseColor += dark_fresnel;
+				fixed4 col = diffuseColor;*/
+				
+				///////////////////////////////////////////////////////////////////
+				diff = diff + fresnel;
+				fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
+				diffuseColor.rgb += specular;
+				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;// *ao;
+				diffuseColor *= 1.5;
+				diffuseColor += (fresnel * _FresnelColorVal);
+				diffuseColor += dark_fresnel;
+
+				fixed4 col = fixed4(diffuseColor.rgb + UNITY_LIGHTMODEL_AMBIENT.xyz * _AmbientVal, 1);
 
                 // Albedo满反色颜色整合
-                fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
+                /*fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
 				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;// *ao;
 				fresnel = (fresnel * diffuseColor / 2 * 10);
-				fresnel_dark = (fresnel_dark * diffuseColor /5 * 10);
-				diffuseColor += fresnel;
-				//diffuseColor += fresnel_dark;
+				diffuseColor += fresnel + dark_fresnel;
 
-				//fixed4 col = fixed4(((LightColor * specular) + diffuseColor.rgb) * atten + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.4,1);
 				fixed4 col = fixed4(((LightColor * specular ) + diffuseColor.rgb) + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.3, 1);
-
+				*/
 				///test
-				//fixed4 col = fixed4( fixed3(1,1,1) * ao_diff , 1);
+				//fixed4 col = fixed4( fixed3(1,1,1) * diffuseColor , 1);
 
 				return col;
             }
