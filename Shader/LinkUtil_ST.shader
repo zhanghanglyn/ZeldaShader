@@ -3,6 +3,7 @@
 菲涅尔边框效果 （正，反，在光亮处的效果与暗处可叠加，并且有偏移）
 高光可由画笔替代
 
+分析贴图之后法线，绿色通道用来处理金属高光！所以
 */
 
 Shader "Zelda/LinkUtil_ST"
@@ -21,11 +22,11 @@ Shader "Zelda/LinkUtil_ST"
 		_LayerRemapVal("_LayerRemapVal" , Vector) = (0.2,0.9,0,0)	//分层后remap等级
 		_BeDabs("_BeDabs" , Range(0,1)) = 1							//是否将高光替换笔刷
 
-		_SpecularSize("_SpecularSize" , Float) = 1					//高光宽度
-		_SpecularPower("_SpecularPower" , Range(0,1)) = 0.7			//高光强度
+		_SpecularSize("_SpecularSize" , Float) = 0.1				//高光宽度
+		_SpecularPower("_SpecularPower" , Range(0,1)) = 0.1			//高光强度
 		_ShadowStep("_ShadowStep" , Range(0,1)) = 0.7				//阴影分层阈值
-		_DabsSizeX("_DabsSizeX" , Float) = 7						//将50除以该值，作为tilling的UV值
-		_DabsSizeY("_DabsSizeY" , Float) = 7						//将50除以该值，作为tilling的UV值
+		_DabsSizeX("_DabsSizeX" , Float) = 2						//将50除以该值，作为tilling的UV值
+		_DabsSizeY("_DabsSizeY" , Float) = 2						//将50除以该值，作为tilling的UV值
 		_DabsRotation("_DabsRotation" , Float) = 30					//UV的旋转角度
 
 		_FresnelScale("_FresnelScale" , Range(0,1)) = 0				//菲涅尔控制系数
@@ -34,6 +35,10 @@ Shader "Zelda/LinkUtil_ST"
 		_FresnelColorVal("_FresnelColorVal" , Range(0,1)) = 0.4		//该值越小，越接近物体本身的颜色
 
 		_AmbientVal("_AmbientVal" , Range(0,1.2)) = 0.3				//环境光系数
+
+		_BeUseMetallicMap("_BeUseMetallicMap" , Range(0,1)) = 0		//是否使用SPC的G通道做金属贴图
+		_MetallicBoundVal("_MetallicBoundVal" , Range(0.01,1))	=	0.4			//金属度缩小值
+		_MetallicVal("_MetallicVal" , Range(0,1)) = 0.5				//金属高光值
     }
     SubShader
     {
@@ -158,6 +163,9 @@ Shader "Zelda/LinkUtil_ST"
 			fixed _FresnelColorVal;
 			fixed _AmbientVal;
 			fixed _DarkFresnelPow;
+			fixed _BeUseMetallicMap;
+			fixed _MetallicVal;
+			fixed _MetallicBoundVal;
 
             v2f vert (appdata v)
             {
@@ -237,7 +245,7 @@ Shader "Zelda/LinkUtil_ST"
 
 				//获取Specular贴图
 				fixed3 SpecularMap = tex2D(_SPecularMap , i.uv2.xy).rgb;
-				SpecularMap = smoothstep(0.3, 0.32 ,SpecularMap);
+				fixed Specular = smoothstep(0.3, 0.32 ,SpecularMap.r);
 
 				//保存一个dot(View , worldNormal)免得重复计算
 				fixed view_normal_dot = dot(worldViewDir, worldNormal);
@@ -248,11 +256,16 @@ Shader "Zelda/LinkUtil_ST"
 				//////////////////////////////////
 				////计算高光，以及将高光转化为笔刷
 				fixed3 specular = fixed3(1, 1, 1);
+				//保存一个当前的specular高光范围，并且与金属度相乘显示金属效果，不与specular用同一参数控制
+				fixed metallicSpecularDiff;
 				//如果只使用普通的高光
 				if (_BeDabs < 1)
 				{
-					fixed specular_Normal = half_normal_dot * diff * SpecularMap;//half_normal_dot * atten * SpecularMap;
+					fixed specular_Normal = half_normal_dot * diff * Specular;//half_normal_dot * atten * SpecularMap;
 					specular_Normal = Unity_Remap_float(specular_Normal, fixed2(0.9, 1), fixed2(0, 1));
+
+					metallicSpecularDiff = specular_Normal;
+
 					specular_Normal = step((1 - _SpecularSize), specular_Normal);
 					specular_Normal *= _SpecularPower;
 					specular = specular_Normal * fixed3(1, 1, 1);
@@ -264,7 +277,10 @@ Shader "Zelda/LinkUtil_ST"
 					dabsUv = Rotate_Degrees_float(dabsUv, fixed2(0.5,0.5), _DabsRotation);
 					fixed3 DabsMap = tex2D(_DabsTex, dabsUv).rgb;
 
-					fixed specularScope = half_normal_dot * diff * SpecularMap;//half_normal_dot * atten * SpecularMap;
+					fixed specularScope = half_normal_dot * diff * Specular;//half_normal_dot * atten * SpecularMap;
+
+					metallicSpecularDiff = specularScope;
+
 					fixed temp_shadowDiff = Unity_Remap_float(_SpecularSize, fixed2(0, 1), fixed2(-1, -0.9));
 					temp_shadowDiff = temp_shadowDiff + specularScope;
 					temp_shadowDiff = smoothstep(0.01, 0.15, temp_shadowDiff);
@@ -272,6 +288,12 @@ Shader "Zelda/LinkUtil_ST"
 					specular = DabsMap * temp_shadowDiff;
 				}
 				///////////////////////////////////
+
+				////金属度贴图
+				fixed metallic = SpecularMap.g;
+				metallic *= diff * metallicSpecularDiff;
+				metallic = step(_MetallicBoundVal, metallic);
+				metallic *= _MetallicVal;
 
 				////添加光照面菲涅尔效应，只有光面
 				fixed fresnel = pow(1 - max(0, dot(worldViewDir, worldNormal)), _FresnelPow);
@@ -287,13 +309,16 @@ Shader "Zelda/LinkUtil_ST"
 
 				/////////////////////尝试使用新的菲涅尔效应/////////////////////////
 				
+				float3 viewForward = float3(worldViewDir.x, 1, 1);  //尝试只使用X方向的向量，让边缘光与视线的倾斜角度无关
+				//fixed fresnel2 = pow((1.0 - saturate(dot(worldNormal, viewForward))), _DarkFresnelPow);
 				fixed fresnel2 = pow((1.0 - saturate(dot(worldNormal, worldViewDir))), _DarkFresnelPow);
 				
 				fixed3 light_F = worldLightDir * -1;
+				light_F = fixed3(worldLightDir.x, 1, 1);
 				fixed F_diff = 1 - saturate(dot(light_F , worldViewDir) + 0.2) + 0.2;
 
 				//暗面
-				fixed dark_fresnel = step((F_diff + 0.2), fresnel2);
+				fixed dark_fresnel = step((F_diff + 0.1), fresnel2);
 				fixed f_tempdiff = SetToonLayer(temp_diff, 2, _ShadowLayerVal, _LayerRemapVal);
 				dark_fresnel *= f_tempdiff;
 				dark_fresnel = saturate(dark_fresnel);
@@ -310,9 +335,11 @@ Shader "Zelda/LinkUtil_ST"
 				fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
 				diffuseColor.rgb += specular;
 				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;// *ao;
+				if (_BeUseMetallicMap)
+					diffuseColor.rgb += (diffuseColor.rgb * _MetallicVal * diff * LightColor * metallic);
 				diffuseColor *= 1.5;
 				diffuseColor += (fresnel * _FresnelColorVal);
-				diffuseColor += dark_fresnel;
+				diffuseColor += (dark_fresnel * 2);
 
 				fixed4 col = fixed4(diffuseColor.rgb + UNITY_LIGHTMODEL_AMBIENT.xyz * _AmbientVal, 1);
 
@@ -325,7 +352,7 @@ Shader "Zelda/LinkUtil_ST"
 				fixed4 col = fixed4(((LightColor * specular ) + diffuseColor.rgb) + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.3, 1);
 				*/
 				///test
-				//fixed4 col = fixed4( fixed3(1,1,1) * diffuseColor , 1);
+				//fixed4 col = fixed4( fixed3(1,1,1) * metallic, 1);
 
 				return col;
             }

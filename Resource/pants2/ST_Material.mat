@@ -81,7 +81,7 @@ Material:
     - _DabsRotation: 30.37
     - _DabsSizeX: 7
     - _DabsSizeY: 2.51
-    - _DarkFresnelPow: 2.3
+    - _DarkFresnelPow: 4.25
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _FresnelColorVal: 0.082
