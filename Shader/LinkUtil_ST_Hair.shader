@@ -4,9 +4,11 @@
 高光可由画笔替代
 
 分析贴图之后法线，绿色通道用来处理金属高光！所以
+
+头发用，会再生成第三层高光
 */
 
-Shader "Zelda/LinkUtil_ST"
+Shader "Zelda/LinkUtil_ST_Hair"
 {
     Properties
     {
@@ -20,10 +22,12 @@ Shader "Zelda/LinkUtil_ST"
 		_BeNormalBlend("_BeNormalBlend" , Range(0,1)) = 0			//是否使用物体本身法线
 		_ShadowLayerVal("_ShadowLayerVal" , Range(0,1)) = 0.25		//阴影分层位置
 		_LayerRemapVal("_LayerRemapVal" , Vector) = (0.2,0.9,0,0)	//分层后remap等级
-		_BeDabs("_BeDabs" , Range(0,1)) = 1							//是否将高光替换笔刷
 
 		_SpecularSize("_SpecularSize" , Float) = 0.1				//高光宽度
 		_SpecularPower("_SpecularPower" , Range(0,1)) = 0.1			//高光强度
+		_HairSpeSize("_HairSpeSize" , Float) = 0.1					//头发最高层刷光宽度大小
+		_HairSpePower("_HairSpePower" , Range(0,1)) = 0.1			//头发最高层高光强度
+
 		_ShadowStep("_ShadowStep" , Range(0,1)) = 0.7				//阴影分层阈值
 		_DabsSizeX("_DabsSizeX" , Float) = 2						//将50除以该值，作为tilling的UV值
 		_DabsSizeY("_DabsSizeY" , Float) = 2						//将50除以该值，作为tilling的UV值
@@ -36,9 +40,6 @@ Shader "Zelda/LinkUtil_ST"
 
 		_AmbientVal("_AmbientVal" , Range(0,1.2)) = 0.3				//环境光系数
 
-		_BeUseMetallicMap("_BeUseMetallicMap" , Range(0,1)) = 0		//是否使用SPC的G通道做金属贴图
-		_MetallicBoundVal("_MetallicBoundVal" , Range(0.01,1))	=	0.4			//金属度缩小值
-		_MetallicVal("_MetallicVal" , Range(0,1)) = 0.5				//金属高光值
     }
     SubShader
     {
@@ -158,14 +159,12 @@ Shader "Zelda/LinkUtil_ST"
 			fixed _DabsSizeX;
 			fixed _DabsSizeY;
 			fixed _DabsRotation;
-			//fixed _FresnelScale;
 			fixed _FresnelPow;
 			fixed _FresnelColorVal;
 			fixed _AmbientVal;
 			fixed _DarkFresnelPow;
-			fixed _BeUseMetallicMap;
-			fixed _MetallicVal;
-			fixed _MetallicBoundVal;
+			fixed _HairSpeSize;
+			fixed _HairSpePower;
 
             v2f vert (appdata v)
             {
@@ -256,58 +255,46 @@ Shader "Zelda/LinkUtil_ST"
 				//////////////////////////////////
 				////计算高光，以及将高光转化为笔刷
 				fixed3 specular = fixed3(1, 1, 1);
-				//保存一个当前的specular高光范围，并且与金属度相乘显示金属效果，不与specular用同一参数控制
-				fixed metallicSpecularDiff;
 				//如果只使用普通的高光
-				if (_BeDabs < 1)
-				{
-					fixed specular_Normal = half_normal_dot * diff * Specular;//half_normal_dot * atten * SpecularMap;
-					specular_Normal = Unity_Remap_float(specular_Normal, fixed2(0.9, 1), fixed2(0, 1));
+				fixed specular_Normal = half_normal_dot * diff * Specular;//half_normal_dot * atten * SpecularMap;
+				specular_Normal = Unity_Remap_float(specular_Normal, fixed2(0.9, 1), fixed2(0, 1));
+				specular_Normal = smoothstep((1 - _SpecularSize), (1 - _SpecularSize) + 0.1, specular_Normal);
+				specular_Normal *= _SpecularPower;
+				specular = specular_Normal * fixed3(1, 1, 1);
 
-					metallicSpecularDiff = specular_Normal;
+				////再添加一层笔刷的光照
+				//计算笔刷的缩放以及旋转
+				fixed2 dabsUv = fixed2(i.uv.x * (_DabsSizeX), i.uv.y * 10 * (_DabsSizeY));
+				dabsUv = Rotate_Degrees_float(dabsUv, fixed2(0.5,0.5), _DabsRotation);
+				fixed3 DabsMap = tex2D(_DabsTex, dabsUv).rgb;
 
-					//specular_Normal = step((1 - _SpecularSize), specular_Normal);
-					smoothstep((1 - _SpecularSize), (1 - _SpecularSize) + 0.1, specular_Normal);
-					specular_Normal *= _SpecularPower;
-					specular = specular_Normal * fixed3(1, 1, 1);
-				}
-				else	////如果需要使用笔刷，则将高光转化为笔刷
-				{
-					//计算笔刷的缩放以及旋转
-					fixed2 dabsUv = fixed2(i.uv.x * (_DabsSizeX), i.uv.y * 10 * (_DabsSizeY));
-					dabsUv = Rotate_Degrees_float(dabsUv, fixed2(0.5,0.5), _DabsRotation);
-					fixed3 DabsMap = tex2D(_DabsTex, dabsUv).rgb;
+				/////////////// top光的测试！！
+				fixed TopLightDiff = saturate(half_normal_dot);
+				fixed temp_diff_v = saturate(dot(worldViewDir, worldNormal));
+				fixed temp_diff_l = saturate(dot(worldLightDir, worldNormal));
+				fixed distance_V = abs(TopLightDiff - temp_diff_v);
+				fixed distance_L = abs(TopLightDiff - temp_diff_l);
+				if (saturate(dot(worldLightDir, worldNormal)) > 0.7 && abs(distance_L - distance_V) > 0.3 )
+				//if(saturate(dot(worldViewDir, worldNormal)) > 0.7)
+					TopLightDiff = 0;
+				else
+					TopLightDiff = lerp( 1 ,0 , distance_L - distance_V);
+				
+				////////////
+				fixed specularScope = TopLightDiff * (half_normal_dot * diff * Specular);//half_normal_dot * atten * SpecularMap;
 
-					fixed specularScope = half_normal_dot * diff * Specular;//half_normal_dot * atten * SpecularMap;
-
-					metallicSpecularDiff = specularScope;
-
-					fixed temp_shadowDiff = Unity_Remap_float(_SpecularSize, fixed2(0, 1), fixed2(-1, -0.9));
-					temp_shadowDiff = temp_shadowDiff + specularScope;
-					//temp_shadowDiff = smoothstep(0.01, 0.15, temp_shadowDiff);
-					temp_shadowDiff = smoothstep(0.01, 0.02, temp_shadowDiff);
-					temp_shadowDiff *= _SpecularPower;
-					specular = DabsMap * temp_shadowDiff;
-				}
+				fixed temp_shadowDiff = Unity_Remap_float(_HairSpeSize, fixed2(0, 1), fixed2(-1, -0.9));
+				temp_shadowDiff = temp_shadowDiff + specularScope;
+				temp_shadowDiff = smoothstep(0.01, 0.02, temp_shadowDiff);
+				temp_shadowDiff *= _HairSpePower;
+				fixed3 Dabsspecular = fixed3(1,1,1) * temp_shadowDiff * 0.5;
+				
 				///////////////////////////////////
-
-				////金属度贴图
-				fixed metallic = SpecularMap.g;
-				metallic *= diff * metallicSpecularDiff;
-				metallic = step(_MetallicBoundVal, metallic);
-				metallic *= _MetallicVal;
 
 				////添加光照面菲涅尔效应，只有光面
 				fixed fresnel = pow(1 - max(0, dot(worldViewDir, worldNormal)), _FresnelPow);
 				fresnel *= (half_normal_dot * atten);
 				fresnel  = smoothstep(0.01, 0.02, fresnel);
-
-				///添加暗面菲涅尔效应 描边？
-				/*fixed fresnel_dark = 1 - dot(worldViewDir, worldNormal);
-				fresnel_dark = step(0.5 , fresnel_dark);
-				fresnel_dark = step((1 - fresnel) , fresnel_dark);
-				fresnel_dark *= (1 - save_atten);
-				fresnel_dark = smoothstep(0.01, 0.02, fresnel_dark);*/
 
 				/////////////////////尝试使用新的菲涅尔效应/////////////////////////
 				
@@ -324,127 +311,26 @@ Shader "Zelda/LinkUtil_ST"
 				fixed f_tempdiff = SetToonLayer(temp_diff, 2, _ShadowLayerVal, _LayerRemapVal);
 				dark_fresnel *= f_tempdiff;
 				dark_fresnel = saturate(dark_fresnel);
-
-				/*fixed3 diffColor = LightColor * specular * f_tempdiff;
-				fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
-				diffuseColor.rgb = diffColor.rgb * (diffuseColor.rgb * LightColor);
-				diffuseColor *= 1.5;
-				diffuseColor += dark_fresnel;
-				fixed4 col = diffuseColor;*/
 				
 				///////////////////////////////////////////////////////////////////
 				diff = diff + fresnel;
 				fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
 				diffuseColor.rgb += specular;
+				diffuseColor.rgb += Dabsspecular;
 				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;// *ao;
-				if (_BeUseMetallicMap)
-					diffuseColor.rgb += (diffuseColor.rgb * _MetallicVal * diff * LightColor * metallic);
+
 				diffuseColor *= 1.5;
 				diffuseColor += (fresnel * _FresnelColorVal);
 				diffuseColor += (dark_fresnel * 2);
 
 				fixed4 col = fixed4(diffuseColor.rgb + UNITY_LIGHTMODEL_AMBIENT.xyz * _AmbientVal, 1);
 
-                // Albedo满反色颜色整合
-                /*fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
-				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;// *ao;
-				fresnel = (fresnel * diffuseColor / 2 * 10);
-				diffuseColor += fresnel + dark_fresnel;
-
-				fixed4 col = fixed4(((LightColor * specular ) + diffuseColor.rgb) + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.3, 1);
-				*/
-				///test
-				//fixed4 col = fixed4( fixed3(1,1,1) * metallic, 1);
+				//fixed4 col = fixed4(fixed3(1,1,1) * specular_Normal , 1);
 
 				return col;
             }
             ENDCG
         }
-
-		//初步设计 PASS块用来显示笔刷以及AO阴影效果叠加
-		/*Pass {
-			Tags {"LightMode" = "ForwardAdd"}
-
-			Blend srcAlpha OneMinusSrcAlpha
-
-			CGPROGRAM
-			#pragma vertex vert_add
-			#pragma fragment frag_add
-			#include "UnityCG.cginc"
-			#include "Lighting.cginc"
-			#pragma multi_compile_fwdadd
-			
-			struct a2v
-			{
-				float4 vertex : POSITION;
-				float2 uv : TEXCOORD0;
-			};
-
-			struct v2f {
-				float2 uv : TEXCOORD0;
-				float4 pos : SV_POSITION;
-			};
-
-			sampler2D _MainTex;
-			float4 _MainTex_ST;
-
-			v2f vert_add(a2v v)
-			{
-				v2f o;
-				o.pos = UnityObjectToClipPos(v.vertex);
-				o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-
-				return o;
-			}
-
-			fixed4 frag_add(v2f i) : SV_Target
-			{
-				///计算光照方向，因为可能并不是方向光
-				//#ifndef USING_LIGHT_MULTI_COMPILE
-				//fixed3 worldLightDir = normalize(_WorldSpaceLightPos0.xyz - o.world_pos.xyz * _WorldSpaceLightPos0.w);
-				//#else
-				//#ifdef USING_DIRECTIONAL_LIGHT
-				//fixed3 worldLightDir = normalize(_WorldSpaceLightPos0.xyz);
-				//#else
-				//fixed3 worldLightDir = normalize(_WorldSpaceLightPos0.xyz - o.world_pos.xyz);
-				//#endif
-				//#endif
-				//fixed3 worldLightDir = UnityWorldSpaceLightDir(o.world_pos);
-
-				//计算光的衰减 如果不是方向光则使用光强衰弱纹理
-				#ifdef USING_DIRECTIONAL_LIGHT
-							fixed atten = 1.0;
-				#else
-							//float3 lightCoord = mul(unity_WorldToLight , float4(o.world_pos.xyz,1) ).xyz;
-							//fixed atten = tex2D( _LightTexture0 , dot( lightCoord, lightCoord).rr ).UNITY_ATTEN_CHANNEL;
-				#if defined (POINT)
-							float3 lightCoord = mul(unity_WorldToLight, float4(o.world_pos.xyz, 1)).xyz;
-							fixed atten = tex2D(_LightTexture0, dot(lightCoord, lightCoord).xx).UNITY_ATTEN_CHANNEL;
-							//fixed atten = tex2D(_LightTexture0, float2(dot(lightCoord, lightCoord), dot(lightCoord, lightCoord))).UNITY_ATTEN_CHANNEL;
-				#elif defined (SPOT)
-							float4 lightCoord = mul(unity_WorldToLight, float4(o.world_pos.xyz, 1));
-							fixed atten = (lightCoord.z > 0) * tex2D(_LightTexture0, lightCoord.xy / lightCoord.w + 0.5).w * tex2D(_LightTextureB0, dot(lightCoord, lightCoord).rr).UNITY_ATTEN_CHANNEL;
-				#else
-							fixed atten = 1.0;
-				#endif				
-				#endif
-
-				fixed3 albedo = _Color.rgb * tex2D(_MainTex , o.uv).xyz;
-
-				fixed3 diffuse = albedo * _LightColor0.xyz * saturate(dot(o.worldNormal , worldLightDir));
-
-				fixed3 viewDir = normalize(_WorldSpaceCameraPos.xyz - o.world_pos.xyz);
-				fixed3 worldView = normalize(UnityWorldSpaceViewDir(o.world_pos));
-
-				fixed3 halfDir = normalize(worldView + worldLightDir);//_WorldSpaceLightPos0.xyz);
-
-				fixed3 specular = _Specular.xyz * _LightColor0.xyz * pow(saturate(dot(o.worldNormal, halfDir)), _Gloss);
-
-				fixed3 color = (diffuse + specular) * atten;
-				return fixed4(color,1);
-			}
-			ENDCG
-		}*/
 
 		Pass {
 			Tags {"LightMode"="ShadowCaster"}
