@@ -39,8 +39,6 @@ Shader "Zelda/LinkUtil_ST"
 		_BeUseMetallicMap("_BeUseMetallicMap" , Range(0,1)) = 0		//是否使用SPC的G通道做金属贴图
 		_MetallicBoundVal("_MetallicBoundVal" , Range(0.01,1))	=	0.4			//金属度缩小值
 		_MetallicVal("_MetallicVal" , Range(0,1)) = 0.5				//金属高光值
-
-		_BeSecondUV( "_BeSecondUV" , Range(0,1) ) = 0				//是否采用代码外部加载的UV进行AO等操作
     }
     SubShader
     {
@@ -169,9 +167,6 @@ Shader "Zelda/LinkUtil_ST"
 			fixed _BeUseMetallicMap;
 			fixed _MetallicVal;
 			fixed _MetallicBoundVal;
-			//外部传入的layer2的UV
-			fixed2 _Layer2UV;
-			fixed _BeSecondUV;
 
             v2f vert (appdata v)
             {
@@ -180,8 +175,6 @@ Shader "Zelda/LinkUtil_ST"
                 o.uv.xy = TRANSFORM_TEX(v.uv, _MainTex);
 				o.uv.zw = TRANSFORM_TEX(v.uv, _NormalMap);
 				o.uv2.xy = TRANSFORM_TEX(v.uv, _SPecularMap);
-				if (_BeSecondUV == 1)
-					o.uv2.zw = TRANSFORM_TEX(v.uv, _AOMap);
 
 				float4 worldPos = mul(unity_ObjectToWorld, v.vertex);
 
@@ -230,11 +223,7 @@ Shader "Zelda/LinkUtil_ST"
 				//不将AO在最后乘上增加细节，而是用来乘以法线！可以完美显示效果 但是最好能够颜色加深,在Add光照中？
 				//尝试 将AO与Normal进行相乘！可以将着色效果不再生硬
 				fixed3 ao;
-				//如果layer2UV不存在
-				if (_BeSecondUV == 0)
-					ao = tex2D(_AOMap, i.uv.xy).rgb;
-				else
-					ao = tex2D(_AOMap, i.uv2.zw).rgb;
+				ao = tex2D(_AOMap, i.uv.xy).rgb;
 				worldNormal *= ao.r;
 
 				//根据法线计算初步光照并且Toon分层
@@ -278,8 +267,8 @@ Shader "Zelda/LinkUtil_ST"
 
 					metallicSpecularDiff = specular_Normal;
 
-					//specular_Normal = step((1 - _SpecularSize), specular_Normal);
-					smoothstep((1 - _SpecularSize), (1 - _SpecularSize) + 0.1, specular_Normal);
+					specular_Normal = step((1 - _SpecularSize), specular_Normal);
+					//smoothstep((1 - _SpecularSize), (1 - _SpecularSize) + 0.1, specular_Normal);
 					specular_Normal *= _SpecularPower;
 					specular = specular_Normal * fixed3(1, 1, 1);
 				}
