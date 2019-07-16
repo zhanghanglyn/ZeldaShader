@@ -373,6 +373,7 @@ Shader "Zelda/LinkUtil_ST"
 			#pragma fragment frag_add
 			#include "UnityCG.cginc"
 			#include "Lighting.cginc"
+			#include "AutoLight.cginc"
 			#pragma multi_compile_fwdadd
 			
 			struct a2v
@@ -384,6 +385,7 @@ Shader "Zelda/LinkUtil_ST"
 			struct v2f {
 				float2 uv : TEXCOORD0;
 				float4 pos : SV_POSITION;
+				float4 world_pos : TEXCOORD1;
 			};
 
 			sampler2D _MainTex;
@@ -394,6 +396,7 @@ Shader "Zelda/LinkUtil_ST"
 				v2f o;
 				o.pos = UnityObjectToClipPos(v.vertex);
 				o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+				o.world_pos = mul(unity_ObjectToWorld, v.vertex);
 
 				return o;
 			}
@@ -419,18 +422,18 @@ Shader "Zelda/LinkUtil_ST"
 							//float3 lightCoord = mul(unity_WorldToLight , float4(o.world_pos.xyz,1) ).xyz;
 							//fixed atten = tex2D( _LightTexture0 , dot( lightCoord, lightCoord).rr ).UNITY_ATTEN_CHANNEL;
 				#if defined (POINT)
-							float3 lightCoord = mul(unity_WorldToLight, float4(o.world_pos.xyz, 1)).xyz;
+							float3 lightCoord = mul(unity_WorldToLight, float4(i.world_pos.xyz, 1)).xyz;
 							fixed atten = tex2D(_LightTexture0, dot(lightCoord, lightCoord).xx).UNITY_ATTEN_CHANNEL;
 							//fixed atten = tex2D(_LightTexture0, float2(dot(lightCoord, lightCoord), dot(lightCoord, lightCoord))).UNITY_ATTEN_CHANNEL;
 				#elif defined (SPOT)
-							float4 lightCoord = mul(unity_WorldToLight, float4(o.world_pos.xyz, 1));
+							float4 lightCoord = mul(unity_WorldToLight, float4(i.world_pos.xyz, 1));
 							fixed atten = (lightCoord.z > 0) * tex2D(_LightTexture0, lightCoord.xy / lightCoord.w + 0.5).w * tex2D(_LightTextureB0, dot(lightCoord, lightCoord).rr).UNITY_ATTEN_CHANNEL;
 				#else
 							fixed atten = 1.0;
 				#endif				
 				#endif
 
-				fixed3 albedo = _Color.rgb * tex2D(_MainTex , o.uv).xyz;
+				fixed3 albedo = _Color.rgb * tex2D(_MainTex , i.uv).xyz;
 
 				fixed3 diffuse = albedo * _LightColor0.xyz * saturate(dot(o.worldNormal , worldLightDir));
 
