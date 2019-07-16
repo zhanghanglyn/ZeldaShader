@@ -81,6 +81,7 @@ Material:
     - _AmbientVal: 0.3
     - _BeDabs: 1
     - _BeNormalBlend: 0
+    - _BeSecondUV: 1
     - _BeUseMetallicMap: 0
     - _BeUseObjNormal: 0
     - _Blend: 0

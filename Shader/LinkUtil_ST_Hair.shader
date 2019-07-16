@@ -268,20 +268,7 @@ Shader "Zelda/LinkUtil_ST_Hair"
 				dabsUv = Rotate_Degrees_float(dabsUv, fixed2(0.5,0.5), _DabsRotation);
 				fixed3 DabsMap = tex2D(_DabsTex, dabsUv).rgb;
 
-				/////////////// top光的测试！！
-				fixed TopLightDiff = saturate(half_normal_dot);
-				fixed temp_diff_v = saturate(dot(worldViewDir, worldNormal));
-				fixed temp_diff_l = saturate(dot(worldLightDir, worldNormal));
-				fixed distance_V = abs(TopLightDiff - temp_diff_v);
-				fixed distance_L = abs(TopLightDiff - temp_diff_l);
-				if (saturate(dot(worldLightDir, worldNormal)) > 0.7 && abs(distance_L - distance_V) > 0.3 )
-				//if(saturate(dot(worldViewDir, worldNormal)) > 0.7)
-					TopLightDiff = 0;
-				else
-					TopLightDiff = lerp( 1 ,0 , distance_L - distance_V);
-				
-				////////////
-				fixed specularScope = TopLightDiff * (half_normal_dot * diff * Specular);//half_normal_dot * atten * SpecularMap;
+				fixed specularScope = half_normal_dot * diff * Specular;
 
 				fixed temp_shadowDiff = Unity_Remap_float(_HairSpeSize, fixed2(0, 1), fixed2(-1, -0.9));
 				temp_shadowDiff = temp_shadowDiff + specularScope;

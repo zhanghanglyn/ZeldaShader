@@ -39,6 +39,8 @@ Shader "Zelda/LinkUtil_ST"
 		_BeUseMetallicMap("_BeUseMetallicMap" , Range(0,1)) = 0		//是否使用SPC的G通道做金属贴图
 		_MetallicBoundVal("_MetallicBoundVal" , Range(0.01,1))	=	0.4			//金属度缩小值
 		_MetallicVal("_MetallicVal" , Range(0,1)) = 0.5				//金属高光值
+
+		_BeSecondUV( "_BeSecondUV" , Range(0,1) ) = 0				//是否采用代码外部加载的UV进行AO等操作
     }
     SubShader
     {
@@ -146,6 +148,7 @@ Shader "Zelda/LinkUtil_ST"
 			sampler2D _DabsTex;
 			float4 _DabsTex_ST;
 			sampler2D _AOMap;
+			float4 _AOMap_ST;
 
 			fixed _BeNormalBlend;	//是否进行法线融合
 			fixed _BeUseObjNormal;	//是否使用物体本身法线
@@ -166,6 +169,9 @@ Shader "Zelda/LinkUtil_ST"
 			fixed _BeUseMetallicMap;
 			fixed _MetallicVal;
 			fixed _MetallicBoundVal;
+			//外部传入的layer2的UV
+			fixed2 _Layer2UV;
+			fixed _BeSecondUV;
 
             v2f vert (appdata v)
             {
@@ -174,6 +180,8 @@ Shader "Zelda/LinkUtil_ST"
                 o.uv.xy = TRANSFORM_TEX(v.uv, _MainTex);
 				o.uv.zw = TRANSFORM_TEX(v.uv, _NormalMap);
 				o.uv2.xy = TRANSFORM_TEX(v.uv, _SPecularMap);
+				if (_BeSecondUV == 1)
+					o.uv2.zw = TRANSFORM_TEX(v.uv, _AOMap);
 
 				float4 worldPos = mul(unity_ObjectToWorld, v.vertex);
 
@@ -221,9 +229,13 @@ Shader "Zelda/LinkUtil_ST"
 
 				//不将AO在最后乘上增加细节，而是用来乘以法线！可以完美显示效果 但是最好能够颜色加深,在Add光照中？
 				//尝试 将AO与Normal进行相乘！可以将着色效果不再生硬
-				fixed3 ao = tex2D(_AOMap, i.uv.xy).rgb;
+				fixed3 ao;
+				//如果layer2UV不存在
+				if (_BeSecondUV == 0)
+					ao = tex2D(_AOMap, i.uv.xy).rgb;
+				else
+					ao = tex2D(_AOMap, i.uv2.zw).rgb;
 				worldNormal *= ao.r;
-				ao = ao / 2;
 
 				//根据法线计算初步光照并且Toon分层
 				fixed diff = dot(worldLightDir, worldNormal);
@@ -336,7 +348,7 @@ Shader "Zelda/LinkUtil_ST"
 				diff = diff + fresnel;
 				fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
 				diffuseColor.rgb += specular;
-				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;// *ao;
+				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;
 				if (_BeUseMetallicMap)
 					diffuseColor.rgb += (diffuseColor.rgb * _MetallicVal * diff * LightColor * metallic);
 				diffuseColor *= 1.5;
@@ -354,7 +366,7 @@ Shader "Zelda/LinkUtil_ST"
 				fixed4 col = fixed4(((LightColor * specular ) + diffuseColor.rgb) + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.3, 1);
 				*/
 				///test
-				//fixed4 col = fixed4( fixed3(1,1,1) * metallic, 1);
+				//fixed4 col = fixed4( fixed3(1,1,1) * ao.r, 1);
 
 				return col;
             }
