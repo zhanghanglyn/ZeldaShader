@@ -23,7 +23,7 @@ Shader "Zelda/LinkUtil_ST"
 		_BeDabs("_BeDabs" , Range(0,1)) = 1							//是否将高光替换笔刷
 
 		_SpecularSize("_SpecularSize" , Float) = 0.1				//高光宽度
-		_SpecularPower("_SpecularPower" , Range(0,1)) = 0.1			//高光强度
+		_SpecularPower("_SpecularPower" , Range(0,2)) = 0.1			//高光强度
 		_ShadowStep("_ShadowStep" , Range(0,1)) = 0.7				//阴影分层阈值
 		_DabsSizeX("_DabsSizeX" , Float) = 2						//将50除以该值，作为tilling的UV值
 		_DabsSizeY("_DabsSizeY" , Float) = 2						//将50除以该值，作为tilling的UV值
@@ -39,6 +39,8 @@ Shader "Zelda/LinkUtil_ST"
 		_BeUseMetallicMap("_BeUseMetallicMap" , Range(0,1)) = 0		//是否使用SPC的G通道做金属贴图
 		_MetallicBoundVal("_MetallicBoundVal" , Range(0.01,1))	=	0.4			//金属度缩小值
 		_MetallicVal("_MetallicVal" , Range(0,1)) = 0.5				//金属高光值
+
+		_BeUseExUV("_BeUseExUV" , Range(0,1)) = 0					//是否使用外部UV！
     }
     SubShader
     {
@@ -234,9 +236,9 @@ Shader "Zelda/LinkUtil_ST"
 				//阴影以及环境光atten  //想要让阴影在本身就是阴影的地方不显示！
 				//fixed atten = SHADOW_ATTENUATION(i);
 				UNITY_LIGHT_ATTENUATION(atten, i, worldPos);
-				atten = smoothstep(_ShadowStep, _ShadowStep + 0.01, atten);
 				//保存一个纯光照衰减
 				fixed save_atten = atten;
+				atten = smoothstep(_ShadowStep, _ShadowStep + 0.01, atten);
 
 				//temp_diff = step(_ShadowLayerVal, temp_diff);//把temp_diff最原始的状态保存起来
 				atten = atten * step(_ShadowLayerVal, temp_diff);//atten * temp_diff;
@@ -285,9 +287,9 @@ Shader "Zelda/LinkUtil_ST"
 
 					fixed temp_shadowDiff = Unity_Remap_float(_SpecularSize, fixed2(0, 1), fixed2(-1, -0.9));
 					temp_shadowDiff = temp_shadowDiff + specularScope;
-					//temp_shadowDiff = smoothstep(0.01, 0.15, temp_shadowDiff);
-					temp_shadowDiff = smoothstep(0.01, 0.02, temp_shadowDiff);
 					temp_shadowDiff *= _SpecularPower;
+					temp_shadowDiff = smoothstep(0.11, 0.82, temp_shadowDiff);
+					//temp_shadowDiff *= _SpecularPower;
 					specular = DabsMap * temp_shadowDiff;
 				}
 				///////////////////////////////////
@@ -317,7 +319,7 @@ Shader "Zelda/LinkUtil_ST"
 				fixed fresnel2 = pow((1.0 - saturate(dot(worldNormal, worldViewDir))), _DarkFresnelPow);
 				
 				fixed3 light_F = worldLightDir * -1;
-				light_F = fixed3(worldLightDir.x, 1, 1);
+				//light_F = fixed3(worldLightDir.x, 1, 1);
 				fixed F_diff = 1 - saturate(dot(light_F , worldViewDir) + 0.2) + 0.2;
 
 				//暗面
@@ -337,6 +339,15 @@ Shader "Zelda/LinkUtil_ST"
 				diff = diff + fresnel;
 				fixed4 diffuseColor = tex2D(_MainTex, i.uv.xy);
 				diffuseColor.rgb += specular;
+				
+				//test add AO 将AO贴图作为基础颜色加上,主要是在光线不足时，显示一个AO效果
+				fixed ao_diff = (1 - atten) * ao.r;
+				ao_diff += 1 - (1 - atten);
+				//fixed ao_diff = save_atten * ao.r;
+				ao_diff = smoothstep(_ShadowStep, _ShadowStep + 0.01, ao_diff);
+				ao_diff = Unity_Remap_float(ao_diff, fixed2(0,1) , fixed2(0.7,1));
+				diffuseColor.rgb *= ao_diff;
+
 				diffuseColor.rgb = diffuseColor.rgb * diff * LightColor;
 				if (_BeUseMetallicMap)
 					diffuseColor.rgb += (diffuseColor.rgb * _MetallicVal * diff * LightColor * metallic);
@@ -355,7 +366,11 @@ Shader "Zelda/LinkUtil_ST"
 				fixed4 col = fixed4(((LightColor * specular ) + diffuseColor.rgb) + UNITY_LIGHTMODEL_AMBIENT.xyz * 0.3, 1);
 				*/
 				///test
-				//fixed4 col = fixed4( fixed3(1,1,1) * ao.r, 1);
+				//fixed ttt = smoothstep(_ShadowStep, _ShadowStep + 0.01, ((1 - save_atten) * ao.r));
+				//ttt += 1 - smoothstep(_ShadowStep, _ShadowStep + 0.01, ((1 - save_atten)));
+				//fixed ttt = (1 - save_atten) * ao.r;
+				//ttt += 1 - (1 - save_atten);
+				//fixed4 col = fixed4( fixed3(1,1,1) * ttt, 1);
 
 				return col;
             }

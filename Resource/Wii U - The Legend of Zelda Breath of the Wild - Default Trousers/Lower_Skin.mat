@@ -84,11 +84,14 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Floats:
+    - _AmbientVal: 0.3
     - _BNormalMap: 0
     - _BeBrush: 1
     - _BeDabs: 1
     - _BeEmissionMap: 1
     - _BeNormalBlend: 0
+    - _BeUseExUV: 0
+    - _BeUseMetallicMap: 0
     - _BeUseObjNormal: 0
     - _BumpScale: 1
     - _Cutoff: 0.5
@@ -96,9 +99,11 @@ Material:
     - _DabsSize: 7
     - _DabsSizeX: 7
     - _DabsSizeY: 7
+    - _DarkFresnelPow: 24.1
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _EmissionMultiplier: 0
+    - _FresnelColorVal: 0.4
     - _FresnelPow: 26.2
     - _FresnelScale: 0
     - _GlossMapScale: 1
@@ -106,6 +111,8 @@ Material:
     - _GlossyReflections: 1
     - _LightWidth: 0.25
     - _Metallic: 0
+    - _MetallicBoundVal: 0.4
+    - _MetallicVal: 0.5
     - _Mode: 0
     - _OcclusionStrength: 0.524
     - _Parallax: 0.02

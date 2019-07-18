@@ -19,6 +19,10 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _AOMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _Albedo:
         m_Texture: {fileID: 2800000, guid: d194cc9a97b6c5349bf47d22b2099d81, type: 3}
         m_Scale: {x: 1, y: 1}
@@ -80,21 +84,26 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Floats:
+    - _AmbientVal: 0.3
     - _BNormalMap: 0
     - _BeBrush: 1
     - _BeDabs: 1
     - _BeEmissionMap: 1
     - _BeNormalBlend: 0
-    - _BeUseObjNormal: 1
+    - _BeUseExUV: 0
+    - _BeUseMetallicMap: 0
+    - _BeUseObjNormal: 0
     - _BumpScale: 1
     - _Cutoff: 0.5
-    - _DabsRotation: 72.19
+    - _DabsRotation: 14.71
     - _DabsSize: 7.38
-    - _DabsSizeX: 8.28
-    - _DabsSizeY: 1.08
+    - _DabsSizeX: 17.22
+    - _DabsSizeY: 0.75
+    - _DarkFresnelPow: 3
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _EmissionMultiplier: 0
+    - _FresnelColorVal: 0.4
     - _FresnelPow: 14.9
     - _FresnelScale: 0
     - _GlossMapScale: 1
@@ -102,15 +111,17 @@ Material:
     - _GlossyReflections: 1
     - _LightWidth: 0.25
     - _Metallic: 0
+    - _MetallicBoundVal: 0.4
+    - _MetallicVal: 0.5
     - _Mode: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.02
-    - _ShadowLayerVal: 0.29
+    - _ShadowLayerVal: 0.411
     - _ShadowStep: 0.18
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SpecularPower: 0.1
-    - _SpecularSize: -4.28
+    - _SpecularPower: 0.37
+    - _SpecularSize: -0.48
     - _SrcBlend: 1
     - _UVSec: 0
     - _ZWrite: 1
